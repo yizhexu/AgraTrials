@@ -29,7 +29,7 @@ function(input, output) {
     m = m %>% addCircleMarkers(data = dataExport, 
                                lng = ~Longitude, 
                                lat = ~Latitude, 
-                               popup = ~Farmer, 
+                               popup = ~FarmerId, 
                                radius = ~GrainYield, 
                                color = "coral", 
                                fillOpacity = 0,
@@ -42,7 +42,7 @@ function(input, output) {
     m = m %>% addCircleMarkers(data = dataExport, 
                                lng = ~Longitude, 
                                lat = ~Latitude, 
-                               popup = ~Farmer, 
+                               popup = ~FarmerId, 
                                radius = ~GrainYield, 
                                color = "coral", 
                                fillOpacity = 0,
@@ -58,7 +58,7 @@ function(input, output) {
     m = m %>% addCircleMarkers(data = dataExport, 
                                lng = ~Longitude, 
                                lat = ~Latitude, 
-                               popup = ~Farmer, 
+                               popup = ~FarmerId, 
                                radius = ~GrainYield, 
                                color = "coral", 
                                fillOpacity = 0,
@@ -90,18 +90,18 @@ function(input, output) {
   
   farmer_weather <- reactive({
     file <- input$farmer_select
-    load(paste0("./data/farmer/",file,".RData"))
+    load(paste0("./data/farmerId/",file,".RData"))
     weekData
   })
   
   farmer_data <- reactive({
-    ok <- dataExport$Farmer == input$farmer_select
+    ok <- dataExport$FarmerId == input$farmer_select
     data <- dataExport[ok == TRUE,]
     data
   })
   
   farmer_data2 <- reactive({
-    ok <- dataExport$Farmer == input$farmer_select2
+    ok <- dataExport$FarmerId == input$farmer_select2
     data <- dataExport[ok == TRUE,]
     data
   })
@@ -109,7 +109,7 @@ function(input, output) {
   soilTargetDepth <- reactive({
     depth <- soilContent$Depth == input$depth_select
     soilTarget <- soilContent[depth == TRUE, ]
-    ok <- dataExport$Farmer == input$farmer_select2
+    ok <- dataExport$FarmerId == input$farmer_select2
     data <- dataExport[ok == TRUE, ]
     soilTarget[x < unique(data$Longitude) + 5/36/60/2 & x > unique(data$Longitude) - 5/36/60/2]
   })
@@ -257,14 +257,15 @@ function(input, output) {
   }
   
   reactive({
-    ok <- dataExport_subset$Farmer == input$farmer_select
+    ok <- dataExport_subset$FarmerId == input$farmer_select
     dataExport_subset[ok == TRUE,]
-  }) %>%
+  }) %>% 
     ggvis( ~jitter(Treat), ~GrainYield) %>%
-    layer_points(fill = ~factor(Variety), shape := "diamond", stroke := "gold", strokeWidth := 3) %>%
     layer_points( ~jitter(Treat), ~GrainYield, key := ~id, data = dataExport_subset, size = 3, fill = ~factor(Variety), opacity := 0.5) %>%
-    add_tooltip(all_tooltip, "hover") %>%
+	add_tooltip(all_tooltip, "hover") %>%
+	layer_points(fill = ~factor(Variety), shape := "diamond", stroke := "red", strokeWidth := 3) %>%
     add_axis("x", title = "Treatment Groups", ticks = 6) %>%
+    add_axis("y", title = "Grain Yield (t/ha)", ticks = 6) %>%
     add_axis("x", title = "Compare Farmer's Grain Yield to All Trials", orient = "top", ticks = 0, 
              properties = axis_props(
                axis = list(stroke = "white"),
@@ -273,14 +274,15 @@ function(input, output) {
              )) %>%
     add_legend("fill", title = "Type of Variety") %>%
     bind_shiny("plot") 
-  
+	
   output$soil_texture <- renderPlot({
     
     ggplot() +
       coord_tern(L="x",T="y",R="z") +
-      geom_polygon(data = USDA, aes(y=Clay, x=Sand, z=Silt, color = Label, fill = Label), alpha = 0.75, size = 0.5, color = 'black') +
-      geom_point(data = soilTargetDepth(), aes(y=Clay, x=Sand, z=Silt, color = Depth), size = 0.5, alpha = 0.70) +
-      geom_text(data = USDA.LAB, aes(y=Clay, x=Sand, z=Silt, color = Label, fill = Label, label = Label, angle = Angle), color = 'black', size = 3.5) +
+      geom_polygon(data = USDA, aes(y=Clay, x=Sand, z=Silt, color = Label, fill = Label), alpha = 0.35, size = 0.5, color = 'black') +
+      geom_point(data = soilTargetDepth(), aes(y=Clay, x=Sand, z=Silt, color = Depth), alpha = 1) +
+	  #stat_density2d(data = soilTargetDepth(), aes(y=Clay, x=Sand, z=Silt, color = Depth), size = 1) + 
+	  geom_text(data = USDA.LAB, aes(y=Clay, x=Sand, z=Silt, color = Label, fill = Label, label = Label, angle = Angle), color = 'black', size = 3.5) +
       theme_rgbw() +
       theme_showsecondary() +
       theme_showarrows() +
@@ -347,7 +349,8 @@ function(input, output) {
             paste0("This variable is the total accumulated precipitation from the first day of the week of ", input$date_select, ". The unit is millimetres.")} else if (att == "diffPrecipWeek3Year") {
               paste0("This variable is the difference between the total accumulated precipitation from the first day of the week of ", input$date_select, ", compare to the precipitation of the same time period 3 years ago. The unit is millimetres.")} else {
                 paste0("This variable is the difference between the total accumulated precipitation from the first day of the week of ", input$date_select, ", compare to the precipitation of the same time period 10 years ago. The unit is millimetres.")}
-    HTML(paste(str1, str2, sep = '<br/><br/>'))
+	str6 <- "The color scale ranges from dark blue to dark red. For temperature variables, dark blue indicates the lowest/coldest values of a variable during a given week, and dark red indicating the highest/hottest values. For precipitation variables, dark blue signifies the highest/wettest values, and dark red the lowest/driest."
+    HTML(paste(str1, str2, str6, sep = '<br/><br/>'))
   })
   
   output$range_info <- renderUI({
@@ -357,10 +360,15 @@ function(input, output) {
     str3 <- paste("Standard deviation: <br/>", format(sd(weekData()[,att],na.rm = TRUE),digits = 2))
     str4 <- paste("Mean: <br/>", format(mean(weekData()[,att],na.rm = TRUE),digits = 2))
     str5 <- paste("Mode: <br/>", format(median(weekData()[,att],na.rm = TRUE),digits = 2))
+	
     HTML(paste(str1, str2, str3, str4, str5, sep = '<br/><br/>'))
   })
   
   output$tick_info <- renderUI({
     HTML(paste("1 = Control; 2 = Urea; 3 = TSP + urea", "<br/>", "4 = Minjingu powder + urea; 5 = Minjingu granular + urea; 6 = Minjingu mazao + urea; "))
+  })
+  
+  output$soil_explain <- renderUI({
+    HTML(paste('<br/>', "Soil texture of trial sites can play an important role in their performance. This display shows the soil texture chart developed by the USDA, which classifies soils according to their percentage content of silt, sand, and clay. Soil containing equal amounts of all three, for example, is classified as 'clay loam' and appears at the center of the chart.", "For each trial site, soil data points within a 9-by-9 kilometer range are plotted on the classification chart, giving a picture of the relative quality and water carrying capacity of the soils on which the trials were conducted. Soil is also classified at different depths, and users can choose which depths to display on the chart.", sep = '<br/><br/>'))
   })
 }
